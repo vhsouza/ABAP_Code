@@ -1,0 +1,589 @@
+*----------------------------------------------------------------------
+* Programa.: Z_CONV_ROMAN_ARAB
+* Tipo.....: Report
+* Descrição: Conversão Romano e Arábico
+* Autor....: Victor Hugo de Souza
+* Data.....: 27.03.2017
+*----------------------------------------------------------------------
+
+report  z_conv_roman_arab.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_screen_handler DEFINITION
+*----------------------------------------------------------------------*
+class lcl_screen_handler definition final create public.
+
+  public section.
+
+    methods:
+      activate_screen ,
+      store_current_screen ,
+      constructor ,
+
+      set_visible_for_modif_id
+        importing
+          value(im_group_name) type screen-group1,
+
+      set_invisible_for_modif_id
+        importing
+          value(im_group_name) type screen-group1,
+
+      set_recommended
+        importing
+          value(i_field_name) type screen-name.
+
+  private section.
+
+    data:
+      ascreen type standard table of screen with key name .
+    data:
+      dscreen type standard table of screen with key name .
+
+endclass.                    "lcl_screen_handler DEFINITION
+*----------------------------------------------------------------------*
+*       CLASS lcx_conversion DEFINITION
+*----------------------------------------------------------------------*
+class lcx_conversion definition inheriting from cx_static_check final create public.
+
+  public section.
+
+    interfaces if_t100_message .
+
+    constants:
+      begin of number_as_roman,
+        msgid type symsgid value 'OO',
+        msgno type symsgno value '000',
+        attr1 type scx_attrname value 'V_ATTR1',
+        attr2 type scx_attrname value 'V_ATTR2',
+        attr3 type scx_attrname value space,
+        attr4 type scx_attrname value space,
+      end of number_as_roman .
+
+    data: v_attr1 type scx_attrname,
+          v_attr2 type scx_attrname.
+
+    methods constructor
+      importing
+        !textid   like if_t100_message=>t100key optional
+        !previous like previous optional
+        im_attr1  type scx_attrname
+        im_attr2  type scx_attrname.
+endclass.                    "lcx_conversion DEFINITION
+*----------------------------------------------------------------------*
+*       CLASS lcl_conversion DEFINITION
+*----------------------------------------------------------------------*
+class lcl_conversion definition final create public.
+
+  public section.
+
+    types: begin of y_roman_chart,
+             roman  type c length 1,
+             xthous type i,
+             number type int4,
+           end of y_roman_chart.
+
+    methods:
+    constructor,
+
+    exec_conv_arabic_to_roman
+      importing
+        im_arabic_number type i
+      raising lcx_conversion,
+
+    exec_conv_roman_to_arabic
+      importing
+        im_roman_number type char35
+      raising lcx_conversion,
+
+    get_roman_before
+      importing
+        im_roman_number   type c
+        im_xthous         type i
+        returning value(re_roman_before) type y_roman_chart,
+
+     get_roman_after
+      importing
+        im_roman_number   type c
+        im_roman_after    type c
+        im_xthous         type i
+        returning value(re_roman_after) type y_roman_chart,
+
+     get_result returning value(re_result) type char35,
+
+     show_result.
+
+  private section.
+
+    data: mt_roman_chart type standard table of y_roman_chart,
+          m_result       type char35.
+
+endclass.                    "lcl_conversion DEFINITION
+*----------------------------------------------------------------------*
+*       CLASS lcl_conversion_test DEFINITION
+*----------------------------------------------------------------------*
+class lcl_conversion_test definition for testing
+  "#AU Risk_Level Harmless
+  "#AU Duration   Short
+.
+  public section.
+    methods:
+      tst_exec_conv_arabic_to_roman for testing
+      raising lcx_conversion,
+      tst_exec_conv_roman_to_arabic for testing
+      raising lcx_conversion.
+
+endclass.                    "lcl_conversion_test DEFINITION
+*----------------------------------------------------------------------*
+*       CLASS lcl_main_app DEFINITION
+*----------------------------------------------------------------------*
+class lcl_main_app definition.
+
+  type-pools: abap.
+
+  public section.
+
+    methods:
+    constructor,
+
+    change_screen
+      importing
+        im_arabic type flag
+        im_roman  type flag,
+
+    execute_conv
+      importing
+        im_arabic_number type i
+        im_roman_number  type char35
+      raising lcx_conversion,
+
+    display_conv.
+
+  private section.
+
+    data: m_screen_arabic type ref to lcl_screen_handler,
+          m_screen_roman  type ref to lcl_screen_handler,
+          m_conversion    type ref to lcl_conversion,
+          m_arabic        type flag,
+          m_roman         type flag.
+
+endclass.                    "lcl_main_app DEFINITION
+*----------------------------------------------------------------------*
+*       CLASS lcl_screen_handler IMPLEMENTATION
+*----------------------------------------------------------------------*
+class lcl_screen_handler implementation .
+
+  method activate_screen.
+    field-symbols <fs_screen> type screen.
+
+    loop at screen.
+      read table me->ascreen assigning <fs_screen>
+        with table key name = screen-name.
+      if sy-subrc is initial.
+        modify screen from <fs_screen>.
+      endif.
+    endloop.
+  endmethod.                    "activate_screen
+
+  method store_current_screen.
+    clear me->ascreen.
+    loop at screen.
+      append screen to me->ascreen.
+    endloop.
+
+    me->dscreen = me->ascreen.
+  endmethod.                    "store_current_screen
+
+  method constructor.
+    store_current_screen( ).
+  endmethod.                    "constructor
+
+  method set_visible_for_modif_id.
+    field-symbols: <fs_screen> type screen.
+
+    loop at me->ascreen assigning <fs_screen> where group1 eq im_group_name.
+      <fs_screen>-active = 1.
+    endloop.
+  endmethod.                    "set_visible_for_modif_id
+
+  method set_invisible_for_modif_id.
+    field-symbols: <fs_screen> type screen.
+
+    loop at me->ascreen assigning <fs_screen> where group1 eq im_group_name.
+      <fs_screen>-active = 0.
+    endloop.
+  endmethod.                    "set_invisible_for_modif_id
+
+  method set_recommended.
+    field-symbols: <fs_screen> type screen.
+
+    read table me->ascreen assigning <fs_screen>
+      with table key name = i_field_name.
+    if <fs_screen> is assigned.
+      <fs_screen>-active   = 1.
+      <fs_screen>-input    = 1.
+      <fs_screen>-required = 2.
+    endif.
+  endmethod.                    "set_recommended
+
+endclass.                    "lcl_screen_handler IMPLEMENTATION
+*----------------------------------------------------------------------*
+*       CLASS lcl_main_app IMPLEMENTATION
+*----------------------------------------------------------------------*
+class lcl_main_app implementation.
+
+  method constructor.
+    create object m_screen_arabic.
+    m_screen_arabic->set_recommended( 'P_ARABIC' ).
+    m_screen_arabic->set_invisible_for_modif_id( 'RMN' ).
+
+    create object m_screen_roman.
+    m_screen_roman->set_recommended( 'P_ROMAN' ).
+    m_screen_roman->set_invisible_for_modif_id( 'ARB' ).
+  endmethod.                    "constructor
+
+  method change_screen.
+    case abap_true.
+      when im_arabic.
+        me->m_arabic = abap_true. clear me->m_roman.
+        m_screen_arabic->activate_screen( ).
+      when im_roman.
+        me->m_roman = abap_true. clear me->m_arabic.
+        m_screen_roman->activate_screen( ).
+    endcase.
+  endmethod.                    "change_screen
+
+  method execute_conv.
+
+    create object m_conversion.
+
+    case abap_true.
+      when me->m_arabic.
+        m_conversion->exec_conv_arabic_to_roman( im_arabic_number ).
+      when me->m_roman.
+        m_conversion->exec_conv_roman_to_arabic( im_roman_number ).
+      when others.
+    endcase.
+
+  endmethod.                    "execute_conv
+
+  method display_conv.
+    m_conversion->show_result( ).
+  endmethod.                    "display_conv
+
+endclass.                    "lcl_main_app IMPLEMENTATION
+*----------------------------------------------------------------------*
+*       CLASS lcx_conversion IMPLEMENTATION
+*----------------------------------------------------------------------*
+class lcx_conversion implementation.
+
+  method constructor.
+    call method super->constructor
+      exporting
+        previous = previous.
+    me->v_attr1 = im_attr1.
+    me->v_attr2 = im_attr2.
+    clear me->textid.
+    if textid is initial and me->if_t100_message~t100key is initial.
+      if_t100_message~t100key = if_t100_message=>default_textid.
+    else.
+      if_t100_message~t100key = textid.
+    endif.
+  endmethod.                    "constructor
+
+endclass.                    "lcx_conversion IMPLEMENTATION
+*----------------------------------------------------------------------*
+*       CLASS lcl_conversion IMPLEMENTATION
+*----------------------------------------------------------------------*
+class lcl_conversion implementation.
+
+  method constructor.
+
+    data: lw_roman_chart type y_roman_chart.
+
+    lw_roman_chart-number = 1000 * ( 1000 * 1000 ). lw_roman_chart-roman = 'M'. lw_roman_chart-xthous = 2. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 500  * ( 1000 * 1000 ). lw_roman_chart-roman = 'D'. lw_roman_chart-xthous = 2. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 100  * ( 1000 * 1000 ). lw_roman_chart-roman = 'C'. lw_roman_chart-xthous = 2. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 50   * ( 1000 * 1000 ). lw_roman_chart-roman = 'L'. lw_roman_chart-xthous = 2. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 10   * ( 1000 * 1000 ). lw_roman_chart-roman = 'X'. lw_roman_chart-xthous = 2. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 5    * ( 1000 * 1000 ). lw_roman_chart-roman = 'V'. lw_roman_chart-xthous = 2. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 1    * ( 1000 * 1000 ). lw_roman_chart-roman = 'I'. lw_roman_chart-xthous = 2. append lw_roman_chart to me->mt_roman_chart.
+
+    lw_roman_chart-number = 1000 * 1000. lw_roman_chart-roman = 'M'. lw_roman_chart-xthous = 1. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 500  * 1000. lw_roman_chart-roman = 'D'. lw_roman_chart-xthous = 1. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 100  * 1000. lw_roman_chart-roman = 'C'. lw_roman_chart-xthous = 1. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 50   * 1000. lw_roman_chart-roman = 'L'. lw_roman_chart-xthous = 1. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 10   * 1000. lw_roman_chart-roman = 'X'. lw_roman_chart-xthous = 1. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 5    * 1000. lw_roman_chart-roman = 'V'. lw_roman_chart-xthous = 1. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 1    * 1000. lw_roman_chart-roman = 'I'. lw_roman_chart-xthous = 1. append lw_roman_chart to me->mt_roman_chart.
+
+    lw_roman_chart-number = 1000. lw_roman_chart-roman = 'M'. lw_roman_chart-xthous = 0. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 500.  lw_roman_chart-roman = 'D'. lw_roman_chart-xthous = 0. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 100.  lw_roman_chart-roman = 'C'. lw_roman_chart-xthous = 0. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 50.   lw_roman_chart-roman = 'L'. lw_roman_chart-xthous = 0. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 10.   lw_roman_chart-roman = 'X'. lw_roman_chart-xthous = 0. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 5.    lw_roman_chart-roman = 'V'. lw_roman_chart-xthous = 0. append lw_roman_chart to me->mt_roman_chart.
+    lw_roman_chart-number = 1.    lw_roman_chart-roman = 'I'. lw_roman_chart-xthous = 0. append lw_roman_chart to me->mt_roman_chart.
+
+    clear me->m_result.
+
+  endmethod.                    "constructor
+
+  method exec_conv_arabic_to_roman.
+
+    data: l_input_number   type i,
+          l_tabix          type sy-tabix value 1,
+          lw_roman_chart   type y_roman_chart.
+
+    field-symbols: <fs_roman_chart> type y_roman_chart.
+
+    l_input_number = im_arabic_number.
+
+    while l_input_number is not initial.
+
+      loop at me->mt_roman_chart assigning <fs_roman_chart> from l_tabix.
+        l_tabix = sy-tabix.
+
+        if l_input_number ge <fs_roman_chart>-number.
+
+*** Caso preencha com o I acaba sobrepondo o valor de M
+          if <fs_roman_chart>-roman eq 'I' and <fs_roman_chart>-xthous is not initial. continue. endif.
+
+          l_input_number = l_input_number - <fs_roman_chart>-number.
+
+          case <fs_roman_chart>-xthous.
+            when '0'. concatenate: me->m_result <fs_roman_chart>-roman     into me->m_result.
+            when '1'. concatenate: me->m_result <fs_roman_chart>-roman '¹' into me->m_result.
+            when '2'. concatenate: me->m_result <fs_roman_chart>-roman '²' into me->m_result.
+            when others.
+          endcase.
+          exit.
+        else.
+          lw_roman_chart = get_roman_before(  im_roman_number = <fs_roman_chart>-roman im_xthous = <fs_roman_chart>-xthous ).
+          lw_roman_chart-number = <fs_roman_chart>-number - lw_roman_chart-number.
+
+          if l_input_number lt lw_roman_chart-number. continue. endif.
+          l_input_number = l_input_number - lw_roman_chart-number.
+          case <fs_roman_chart>-xthous.
+            when '0'.
+              concatenate: me->m_result lw_roman_chart-roman   into me->m_result,
+                           me->m_result <fs_roman_chart>-roman into me->m_result.
+            when '1'.
+              concatenate: me->m_result lw_roman_chart-roman   '¹' into me->m_result,
+                           me->m_result <fs_roman_chart>-roman '¹' into me->m_result.
+            when '2'.
+              concatenate: me->m_result lw_roman_chart-roman   '²' into me->m_result,
+                           me->m_result <fs_roman_chart>-roman '²' into me->m_result.
+            when others.
+          endcase.
+          exit.
+        endif.
+      endloop.
+      clear lw_roman_chart.
+    endwhile.
+
+    condense me->m_result no-gaps.
+
+  endmethod.                    "exec_conv_roman_chart_to_roman
+
+  method exec_conv_roman_to_arabic.
+
+    data: l_len          type i,
+          l_roman        type c,
+          l_next         type c,
+          l_index        type sy-index,
+          l_xthous       type i,
+          lw_roman_chart type y_roman_chart,
+          l_arabic       type i.
+
+    field-symbols: <fs_roman_chart> type y_roman_chart.
+
+*** Verfica parâmetro de entrada
+    if im_roman_number ca '0123456789'.
+      raise exception type lcx_conversion
+        exporting
+          textid   = lcx_conversion=>number_as_roman
+          im_attr1 = 'Para conversão Romano x Arábico'
+          im_attr2 = 'informar somente letras'.
+    endif.
+
+    l_len = strlen( im_roman_number ).
+
+    do.
+      l_roman = im_roman_number+l_index(1).
+      if l_roman is initial. exit. endif.
+
+      add 1 to l_index.
+      l_next = im_roman_number+l_index(1).
+
+      case l_next.
+        when '¹' or '²'.
+          if l_next eq '¹'. l_xthous = 1. else. l_xthous = 2. endif.
+
+          read table me->mt_roman_chart assigning <fs_roman_chart> with key roman  = l_roman
+                                                                            xthous = l_xthous.
+          add 1 to l_index. l_roman = im_roman_number+l_index(1).
+          add 1 to l_index. l_next  = im_roman_number+l_index(1).
+          if l_next eq '¹' or l_next eq '²'.
+            lw_roman_chart = get_roman_after( im_roman_number = <fs_roman_chart>-roman
+                                              im_roman_after  = l_roman
+                                              im_xthous       = l_xthous ).
+            if lw_roman_chart is initial.
+              subtract 1 from l_index.
+            endif.
+          else.
+            subtract 1 from l_index.
+          endif.
+        when others.
+          read table me->mt_roman_chart assigning <fs_roman_chart> with key roman  = l_roman
+                                                                            xthous = 0.
+          lw_roman_chart = get_roman_after( im_roman_number = <fs_roman_chart>-roman
+                                            im_roman_after  = l_next
+                                            im_xthous       = <fs_roman_chart>-xthous ).
+      endcase.
+
+      if lw_roman_chart is not initial.
+        l_arabic = l_arabic + ( lw_roman_chart-number - <fs_roman_chart>-number ).
+        add 1 to l_index.
+      else.
+        l_arabic = l_arabic + <fs_roman_chart>-number .
+      endif.
+
+      clear lw_roman_chart.
+
+      if l_len le l_index. exit. endif.
+
+    enddo.
+
+    write l_arabic to me->m_result.
+    condense me->m_result no-gaps.
+
+  endmethod.                    "exec_conv_roman_to_arabic
+
+  method get_roman_before.
+
+    data: l_roman type y_roman_chart-roman.
+
+*A letra I somente aparecerá antes do V e do X.
+*A letra X somente aparecerá antes do L e do C
+*A letra C somente aparecerá antes do D e do M.
+    case im_roman_number.
+      when 'V' or 'X'. l_roman = 'I'.
+      when 'L' or 'C'. l_roman = 'X'.
+      when 'D' or 'M'. l_roman = 'C'.
+      when  others. return.
+    endcase.
+
+    read table me->mt_roman_chart into re_roman_before with key roman  = l_roman
+                                                                xthous = im_xthous.
+
+  endmethod.                    "get_roman_before
+
+  method get_roman_after.
+
+*A letra I somente aparecerá antes do V e do X.
+*A letra X somente aparecerá antes do L e do C
+*A letra C somente aparecerá antes do D e do M.
+    case im_roman_number.
+      when 'I'.
+        if im_roman_after eq 'V' or im_roman_after eq 'X'.
+          read table me->mt_roman_chart into re_roman_after with key roman  = im_roman_after
+                                                                     xthous = im_xthous.
+        endif.
+      when 'X'.
+        if im_roman_after eq 'L' or im_roman_after eq 'C'.
+          read table me->mt_roman_chart into re_roman_after with key roman  = im_roman_after
+                                                                     xthous = im_xthous.
+        endif.
+      when 'C'.
+        if im_roman_after eq 'D' or im_roman_after eq 'M'.
+          read table me->mt_roman_chart into re_roman_after with key roman  = im_roman_after
+                                                                     xthous = im_xthous.
+        endif.
+      when  others. return.
+    endcase.
+
+  endmethod.                    "get_roman_after
+
+  method get_result.
+    re_result = me->m_result.
+  endmethod.                    "get_result
+
+  method show_result.
+    write me->m_result.
+  endmethod.                    "show_result
+
+endclass.                    "lcl_conversion IMPLEMENTATION
+*----------------------------------------------------------------------*
+*       CLASS lcl_conversion_test IMPLEMENTATION
+*----------------------------------------------------------------------*
+class lcl_conversion_test implementation.
+
+  method tst_exec_conv_arabic_to_roman.
+
+    data: l_conversion type ref to lcl_conversion,
+          l_result     type char35.
+
+    create object l_conversion.
+    l_conversion->exec_conv_arabic_to_roman( 5 ).
+    l_result = l_conversion->get_result( ).
+
+    cl_aunit_assert=>assert_equals(
+        exp                  = 'V'
+        act                  = l_result
+        msg                  = 'Calc. error' ).
+
+  endmethod.                    "exec_conv_arabic_to_roman
+
+  method tst_exec_conv_roman_to_arabic.
+
+    data: l_conversion type ref to lcl_conversion,
+          l_result     type char35.
+
+    create object l_conversion.
+    l_conversion->exec_conv_roman_to_arabic( 'V' ).
+    l_result = l_conversion->get_result( ).
+
+    cl_aunit_assert=>assert_equals(
+        exp                  = 5
+        act                  = l_result
+        msg                  = 'Calc. error' ).
+
+
+  endmethod.                    "exec_conv_arabic_to_roman
+
+endclass.                    "lcl_conversion_test IMPLEMENTATION
+
+data: v_main_app      type ref to lcl_main_app,
+      v_cx_conversion type ref to lcx_conversion.
+
+selection-screen begin of block b1 with frame title text-t01.
+parameters: p_arabic type i modif id arb,
+            p_roman  type char35 modif id rmn.
+selection-screen end of block b1.
+
+selection-screen begin of block b2 with frame title text-t02.
+parameters: p_rbarab type flag user-command uc1 radiobutton group rb1 default 'X',
+            p_rbroma type flag radiobutton group rb1.
+selection-screen end of block b2.
+
+initialization.
+  create object v_main_app.
+
+at selection-screen output.
+  call method v_main_app->change_screen
+    exporting
+      im_arabic = p_rbarab
+      im_roman  = p_rbroma.
+
+start-of-selection.
+
+  try .
+      call method v_main_app->execute_conv
+        exporting
+          im_arabic_number = p_arabic
+          im_roman_number  = p_roman.
+
+      v_main_app->display_conv( ).
+    catch lcx_conversion into v_cx_conversion.
+      message v_cx_conversion type 'S' display like 'E'.
+  endtry.
